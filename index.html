@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="main.css">
+    <title>Quiz</title>
+</head>
+<body>
+
+<div id="container"></div>
+
+<script type="module">
+
+    const container = document.getElementById("container");
+
+    const answers = [];
+    const questionsAnswers = new Map();
+
+    async function getThemes() {
+
+        const response = await fetch("http://localhost:8000/api/themes");
+        return await response.json();
+
+    }
+
+    const themes = await getThemes();
+
+    themes.forEach(theme => {
+
+        const nbQuestions = theme.nbQuestions;
+
+        const themeContainer = document.createElement("div");
+        const themeButton = document.createElement("button");
+        const themeTitle = document.createElement("h2");
+
+        themeContainer.classList.add("themeContainer")
+        themeButton.classList.add("themeButton");
+        themeTitle.classList.add("themeTitle")
+
+        themeTitle.innerText = theme.text;
+        themeButton.innerText = "Démarer"
+
+        themeButton.addEventListener("click", ev => {
+
+            container.innerHTML = "";
+
+            const subContainer = document.createElement("div");
+            subContainer.id = "subContainer";
+            container.append(subContainer);
+
+            const p = document.createElement("p");
+            p.classList.add("inputText");
+            p.innerText = "Nombre de questions : " + "1";
+
+
+            const input = document.createElement("input");
+            input.type = "range";
+            input.defaultValue = "1"
+            input.min = "1";
+            input.max = nbQuestions;
+            input.id = "questionInput";
+
+            input.addEventListener("input", ev => {
+
+                p.innerText = "Nombre de questions : " + ev.target.value;
+
+            })
+
+            const button = document.createElement("button");
+            button.innerText = "Démarer le Quiz";
+            button.classList.add("button")
+
+            subContainer.append(p, input, button)
+
+            button.addEventListener("click", async (ev) => {
+
+                const nbrQuestions = parseInt(input.value);
+
+                subContainer.innerHTML = "";
+
+                const response = await fetch("http://localhost:8000/api/quiz/" + theme.slug + "/" + nbrQuestions );
+
+                const questions = await response.json();
+
+                for (const question of questions) {
+
+
+                    const response = await fetch("http://localhost:8000/api/question/answers/" + question.slug);
+
+                    const answers = await response.json();
+
+                    questionsAnswers.set(question, answers);
+
+
+                }
+
+                const title = document.createElement("p");
+                title.classList.add("title");
+
+                const questionsContainer = document.createElement("div");
+                questionsContainer.classList.add("questionsContainer");
+
+                async function test(number) {
+
+                    questionsContainer.innerHTML = "";
+
+                    title.innerText = number + 1 + " - " + questions[number].text
+
+                    questionsAnswers.get(questions[number]).forEach(answer => {
+
+                        const answerDom = document.createElement("button")
+                        answerDom.innerText = answer.text
+
+                        answerDom.addEventListener("click", async (ev) => {
+
+                            answers.push(answer.id);
+
+                            if (number + 1 !== nbrQuestions) {
+
+                                await test(number + 1);
+
+                            } else {
+
+                                subContainer.innerHTML = "";
+
+                                const dataAnswers = await fetch(
+
+                                    "http://localhost:8000/api/question/answers",
+                                    {method: "POST", body: JSON.stringify(answers)}
+
+                                )
+
+                                const json = await dataAnswers.json();
+
+
+                                let count = 0;
+
+                                Object.keys(json).forEach(key => {
+
+
+                                    if (json[key].isCorrect === true) {
+
+                                        count++;
+
+                                    }
+
+                                    const p = document.createElement("p");
+                                    p.innerText = json[key].key + 1 + " - " + json[key].question + " " + json[key].isCorrect;
+
+
+
+                                    subContainer.append(p);
+
+
+                                })
+
+                                const score = document.createElement("p");
+                                score.innerText = count + " sur " + answers.length;
+                                score.classList.add("score");
+
+                                const button = document.createElement("button");
+                                button.innerText = "Accueil";
+                                button.addEventListener("click", ev => {
+                                    location.reload()
+                                })
+                                button.classList.add("button")
+
+                                subContainer.append(score, button);
+
+                            }
+                        })
+
+                        questionsContainer.append(answerDom);
+                    })
+
+                }
+
+                test(0);
+
+                subContainer.append(title, questionsContainer)
+
+            })
+
+        })
+
+
+        container.append(themeContainer);
+        themeContainer.append(themeTitle, themeButton)
+    })
+
+</script>
+
+</body>
+</html>
+
